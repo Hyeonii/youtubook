@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+    <head>
+        <title>youtubook</title>
+    </head>
+    <body>
+        <h3>텍스트로 변환하고싶은 youtube 동영상의 링크를 적어주세요</h3>
+        <ul id="messages"></ul>
+        <form id="chat-form">
+            <input id="input-message" type="text" autocomplete="off">
+            <button>Convert</button>
+        </form>
+        
+        <script src="/socket.io/socket.io.js"></script>
+        <script>
+            const socket = io();
+            const form = document.getElementById('chat-form');
+            const input = document.getElementById('input-message');
+            const messages = document.getElementById('messages');
+
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const message = input.value;
+                socket.emit('chat message', message);
+                input.value = '';
+            });
+
+            socket.on('chat message', (msg) => {
+                const li = document.createElement('li');
+                li.textContent = msg;
+                messages.appendChild(li);
+            });
+        </script>
+    </body>
+</html>
