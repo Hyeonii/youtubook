@@ -4,20 +4,38 @@
         <title>youtubook</title>
     </head>
     <body>
-        <h3>텍스트로 변환하고싶은 youtube 동영상의 링크를 적어주세요</h3>
-        <ul id="messages"></ul>
+        <h3>Youtubook</h3>
+        <p>Translate YouTube video to text</p>
         <form id="chat-form">
-            <input id="input-message" type="text" autocomplete="off">
+            <input id="input-message" type="text" autocomplete="off" placeholder="Youtube URL">
             <button>Convert</button>
+            <br />
+            <br />
+            <div>
+                <span>Recognizer type: </span>
+                <select id="recog-type_seletor" value="API">
+                    <option>API</option>
+                    <option>Local</option>
+                </select>
+            </div>
         </form>
-        
+        <div id="messages"></div>
+
         <script src="/socket.io/socket.io.js"></script>
         <script>
             const socket = io();
             const form = document.getElementById('chat-form');
             const input = document.getElementById('input-message');
             const messages = document.getElementById('messages');
+            const typeSelector = document.getElementById('recog-type_seletor');
 
+            typeSelector.addEventListener('change', (event) => {
+                event.preventDefault();
+                const type = typeSelector.value;
+                socket.emit('change type', type);
+                typeSelector.value = type;
+            });
+            
             form.addEventListener('submit', (event) => {
                 event.preventDefault();
                 const message = input.value;
@@ -26,9 +44,10 @@
             });
 
             socket.on('chat message', (msg) => {
-                const li = document.createElement('li');
-                li.textContent = msg;
-                messages.appendChild(li);
+                const pre = document.createElement('pre');
+                pre.textContent = msg;
+                pre.style.whiteSpace = 'pre-wrap';
+                messages.appendChild(pre);
             });
         </script>
     </body>

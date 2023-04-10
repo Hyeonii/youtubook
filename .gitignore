@@ -1,8 +1,10 @@
 ### node ###
 node_modules/
+package-lock.json
 
 ### Python ###
 __pycache__/
 
-public/txt/*
-public/wav/*
+### Files in Public directory ###
+*.txt
+*.mp4

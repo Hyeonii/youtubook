@@ -1,11 +1,10 @@
-const express = require('express');
 const spawn = require('child_process').spawn;
+const express = require('express');
 const app = express();
 const path = require('path');
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
-
-const ROOT_DIR = path.resolve(__dirname, '..');
+const fs = require('fs');
 
 app.use(express.static('screens'));
 
@@ -13,40 +12,78 @@ app.get('/', (_req, res) => {
     res.sendFile(__dirname + '/screens/index.html');
 });
 
+const ROOT_DIR = path.resolve(__dirname, '..');
+
 io.on('connection', (socket) => {
-    // console.log('a user connected');
+    let type = 'API';
+    console.log('a user connected');
+
+    socket.on('change type', (msg) => {
+        type = msg;
+    })
 
     socket.on('chat message', (msg) => {
-        // 생성된 내용 받아서 화면에 표시
-        io.emit('chat message', msg);
+        // Starting the process of converting a YouTube video to MP4.
+        const convertToWav = spawn('python', [__dirname + '/python/convertToMP4.py', msg]);
 
-        const convertToWav = spawn('python', [__dirname + '/python/convertToWav.py', msg]);
-
-        convertToWav.stdout.on('data', function(data) {
+        // When Converting Video to MP4 is successed.
+        convertToWav.stdout.on('data', async function(data) {
+            const mp4CreatedTime = new Date();
+            const mp4CreatedTimeString = mp4CreatedTime.toLocaleTimeString();
+            io.emit('chat message', `${type}) MP4 file extraction successful. ${mp4CreatedTimeString}`);
             // Convert the Buffer object to a regular string
             const videoTitle = data.toString('utf-8').trim();
-
-            console.log('-----------------------');
-            console.log('videoTitle =>' + videoTitle);
-
             const wavFilePath = path.join(ROOT_DIR, 'public', 'wav', videoTitle);
+
+            // Starting the process of converting a MP4 file to txt and changing the conversion method by type.
             const downloadFolderPath = ROOT_DIR + '\\public\\txt';
-            console.log('command =>', 'whisper', wavFilePath, '--output_dir', downloadFolderPath);
-            const convertToText = spawn('whisper', [wavFilePath, '--output_dir', downloadFolderPath]);
-            console.log('-----------------------');
+            const convertToText = type === 'API' 
+                ? spawn('python', [__dirname + '/python/convertToText.py', wavFilePath]) 
+                : spawn('whisper', [wavFilePath, '--output_dir', downloadFolderPath, '--output_format', 'txt'], {
+                    env: {
+                      PYTHONIOENCODING: 'utf-8'
+                    }
+                });
 
             convertToText.stdout.on('data', (data) => {
-                console.log(`stdout: ${data}`);
+                // Check modified time.
+                const txtCreatedTime = new Date();
+                const txtCreatedTimeString = txtCreatedTime.toLocaleTimeString();
+                const diffInMilliseconds = txtCreatedTime.getTime() - mp4CreatedTime.getTime();
+                const diffInSeconds = Math.floor(diffInMilliseconds / 1000);
+
+                const sendResult = (result) => {
+                    io.emit('chat message', `${type}) Text file extraction successful. ${txtCreatedTimeString}\nText conversion time: ${diffInSeconds}s\n${result}`);
+                }
+
+                // The result is processed according to the conversion type.
+                if (type === 'API') {
+                    sendResult(data.toString('utf-8').trim());
+
+                } else if (type === 'Local') {
+                    const textTitle = videoTitle.replace('.mp4', '.txt');
+
+                    fs.readFile(path.join(ROOT_DIR, 'public', 'txt', textTitle), 'utf-8', (err, txtData) => {
+                        if (err) {
+                            io.emit('chat message', `${type}) Text file conversion has failed.`);
+                            return;
+                        }
+                        sendResult(txtData);
+                    });
+                }
             });
-                
+
+            // When a whisper conversion process encounters an error.
             convertToText.stderr.on('data', (data) => {
-                console.error(`stderr: ${data}`);
+                const error = data.toString('utf-8').trim();
+                console.log(`${type}) Text file conversion has failed.\n${error}`)
+                io.emit('chat message', `${type}) Text file conversion has failed.`);
             });
+
         });
         
         convertToWav.stderr.on('data', function(data) {
-            console.log('-----------------------');
-            console.log('에러 발생 =>', data.toString());
+            io.emit('chat message', `${type}) MP4 file extraction failed.`);
         });
     });
 
