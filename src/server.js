@@ -13,24 +13,41 @@ app.get('/', (_req, res) => {
 });
 
 const ROOT_DIR = path.resolve(__dirname, '..');
+const clients = {};
 
 io.on('connection', (socket) => {
+    // Add client's socket data
     let type = 'API';
-    console.log('a user connected');
-
+    clients[socket.client.id] = socket;
+    console.log(`user connected from ${socket.handshake.address} / ${socket.client.id} / count: ${Object.keys(clients).length}`);
+    
+    // Change the conversion type.
     socket.on('change type', (msg) => {
         type = msg;
     })
 
+    // Send shared message to every one in this server.
+    socket.on('share message', (msg) => {
+        io.emit('share message', `${msg}`);
+    })
+
     socket.on('chat message', (msg) => {
         // Starting the process of converting a YouTube video to MP4.
-        const convertToWav = spawn('python', [__dirname + '/python/convertToMP4.py', msg]);
+        const regex = /https:\/\/www\.youtube\.com\/(watch\?v=|shorts\/)[a-zA-Z0-9]+/
+        const regexMatched = msg.match(regex);
+        
+        if (!regexMatched) {
+            socket.emit('chat message', `${type}) This is an invalid YouTube URL.`);
+            return
+        }
+        const youtubeUrl = regexMatched[0];
+        const convertToWav = spawn('python', [__dirname + '/python/convertToMP4.py', youtubeUrl]);
 
         // When Converting Video to MP4 is successed.
         convertToWav.stdout.on('data', async function(data) {
             const mp4CreatedTime = new Date();
             const mp4CreatedTimeString = mp4CreatedTime.toLocaleTimeString();
-            io.emit('chat message', `${type}) MP4 file extraction successful. ${mp4CreatedTimeString}`);
+            socket.emit('chat message', `${type}) MP4 file extraction successful. ${mp4CreatedTimeString}`);
             // Convert the Buffer object to a regular string
             const videoTitle = data.toString('utf-8').trim();
             const wavFilePath = path.join(ROOT_DIR, 'public', 'wav', videoTitle);
@@ -53,7 +70,7 @@ io.on('connection', (socket) => {
                 const diffInSeconds = Math.floor(diffInMilliseconds / 1000);
 
                 const sendResult = (result) => {
-                    io.emit('chat message', `${type}) Text file extraction successful. ${txtCreatedTimeString}\nText conversion time: ${diffInSeconds}s\n${result}`);
+                    socket.emit('chat message', `${type}) Text file extraction successful. ${txtCreatedTimeString}\nText conversion time: ${diffInSeconds}s\nYoutube URL: ${youtubeUrl}\n${result}`);
                 }
 
                 // The result is processed according to the conversion type.
@@ -65,7 +82,7 @@ io.on('connection', (socket) => {
 
                     fs.readFile(path.join(ROOT_DIR, 'public', 'txt', textTitle), 'utf-8', (err, txtData) => {
                         if (err) {
-                            io.emit('chat message', `${type}) Text file conversion has failed.`);
+                            socket.emit('chat message', `${type}) Text file conversion has failed.`);
                             return;
                         }
                         sendResult(txtData);
@@ -77,18 +94,20 @@ io.on('connection', (socket) => {
             convertToText.stderr.on('data', (data) => {
                 const error = data.toString('utf-8').trim();
                 console.log(`${type}) Text file conversion has failed.\n${error}`)
-                io.emit('chat message', `${type}) Text file conversion has failed.`);
+                socket.emit('chat message', `${type}) Text file conversion has failed.`);
             });
 
         });
         
         convertToWav.stderr.on('data', function(data) {
-            io.emit('chat message', `${type}) MP4 file extraction failed.`);
+            socket.emit('chat message', `${type}) MP4 file extraction failed.`);
         });
     });
 
     socket.on('disconnect', () => {
-        console.log('user disconnected');
+        console.log(`${socket.handshake.address} / ${socket.client.id} user disconnected`);
+        // Remove the disconnected socket from the list
+        delete clients[socket.client.id];
     });
 });
 

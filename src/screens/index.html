@@ -3,30 +3,47 @@
     <head>
         <title>youtubook</title>
     </head>
-    <body>
+    <body style="margin: 30px">
         <h3>Youtubook</h3>
-        <p>Translate YouTube video to text</p>
-        <form id="chat-form">
-            <input id="input-message" type="text" autocomplete="off" placeholder="Youtube URL">
-            <button>Convert</button>
-            <br />
-            <br />
-            <div>
-                <span>Recognizer type: </span>
-                <select id="recog-type_seletor" value="API">
-                    <option>API</option>
-                    <option>Local</option>
-                </select>
-            </div>
-        </form>
-        <div id="messages"></div>
+        <div style="margin: 16px 0">
+            <p>Translate YouTube video to text</p>
+            <form id="chat-form">
+                <input style="width: 300px" id="input-message" type="text" autocomplete="off" placeholder="Youtube URL">
+                <button>Convert</button>
+                <div style="margin: 8px 0">
+                    <span>Recognizer type: </span>
+                    <select id="recog-type_seletor" value="API">
+                        <option>API</option>
+                        <option>Local</option>
+                    </select>
+                </div>
+            </form>
+        </div>
+        <div style="margin: 16px 0">
+            <span>Share</span>
+            <form id="share-form">
+                <input id="input-share" style="width: 300px" type="'text" placeholder="Click the chat bubble you want to share"/>
+                <button>Share</button>
+            </form>
+        </div>
+        <div style="margin: 16px 0">
+            <span>Result</span>
+            <div id="messages"></div>
+        </div>
+        <div style="margin: 16px 0">
+            <span>Share</span>
+            <div id="messages-share"></div>
+        </div>
 
         <script src="/socket.io/socket.io.js"></script>
         <script>
             const socket = io();
             const form = document.getElementById('chat-form');
+            const formShare = document.getElementById('share-form');
             const input = document.getElementById('input-message');
+            const inputShare = document.getElementById('input-share');
             const messages = document.getElementById('messages');
+            const messagesShare = document.getElementById('messages-share');
             const typeSelector = document.getElementById('recog-type_seletor');
 
             typeSelector.addEventListener('change', (event) => {
@@ -43,11 +60,29 @@
                 input.value = '';
             });
 
+            formShare.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const message = inputShare.value;
+                socket.emit('share message', message);
+                inputShare.value = '';
+            });
+
             socket.on('chat message', (msg) => {
-                const pre = document.createElement('pre');
-                pre.textContent = msg;
-                pre.style.whiteSpace = 'pre-wrap';
-                messages.appendChild(pre);
+                const li = document.createElement('li');
+                li.className = 'chat-bubble';
+                li.innerHTML = msg.replace(/\n/g, "<br>");
+                li.addEventListener('click', (e) => {
+                    const text = e.currentTarget.innerHTML;
+                    inputShare.value = text;
+                });
+                messages.appendChild(li);
+            });
+
+            socket.on('share message', (msg) => {
+                const li = document.createElement('li');
+                li.className = 'chat-bubble';
+                li.innerHTML = msg;
+                messagesShare.appendChild(li);
             });
         </script>
     </body>
