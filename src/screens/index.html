@@ -5,34 +5,49 @@
     </head>
     <body style="margin: 30px">
         <h3>Youtubook</h3>
-        <div style="margin: 16px 0">
-            <p>Translate YouTube video to text</p>
-            <form id="chat-form">
-                <input style="width: 300px" id="input-message" type="text" autocomplete="off" placeholder="Youtube URL">
-                <button>Convert</button>
-                <div style="margin: 8px 0">
-                    <span>Recognizer type: </span>
-                    <select id="recog-type_seletor" value="API">
-                        <option>API</option>
-                        <option>Local</option>
-                    </select>
+        <div style="display: flex; justify-content: space-between;">
+            <div styl>
+                <div style="margin: 16px 0">
+                    <p>Translate YouTube video to text</p>
+                    <form id="chat-form">
+                        <input style="width: 300px" id="input-message" type="text" autocomplete="off" placeholder="Youtube URL">
+                        <button>Convert</button>
+                        <div style="margin: 8px 0">
+                            <span>Recognizer type: </span>
+                            <select id="recog-type_seletor" value="API">
+                                <option>API</option>
+                                <option>Local</option>
+                            </select>
+                        </div>
+                    </form>
                 </div>
-            </form>
-        </div>
-        <div style="margin: 16px 0">
-            <span>Share</span>
-            <form id="share-form">
-                <input id="input-share" style="width: 300px" type="'text" placeholder="Click the chat bubble you want to share"/>
-                <button>Share</button>
-            </form>
-        </div>
-        <div style="margin: 16px 0">
-            <span>Result</span>
-            <div id="messages"></div>
-        </div>
-        <div style="margin: 16px 0">
-            <span>Share</span>
-            <div id="messages-share"></div>
+                <div style="margin: 16px 0">
+                    <span>Share</span>
+                    <form id="share-form">
+                        <input id="input-share" style="width: 300px" type="'text" placeholder="Click the chat bubble you want to share"/>
+                        <button>Share</button>
+                    </form>
+                </div>
+                <div style="margin: 16px 0">
+                    <span>Result</span>
+                    <ul id="messages"></ul>
+                </div>
+                <div style="margin: 16px 0">
+                    <span>Share</span>
+                    <ul id="messages-share"></ul>
+                </div>
+            </div>
+            <div style="margin: 16px 0">
+                <span>Search video</span>
+                <form id="search-form">
+                    <input id="input-search" style="width: 300px" type="'text" placeholder="search keywords"/>
+                    <button>search</button>
+                </form>
+                <span>Vodeo's list</span>
+                <div style="margin: 16px 0">
+                    <ul id="video-list" style="height: 1000px; overflow: auto;"></ul>
+                </div>
+            </div>
         </div>
 
         <script src="/socket.io/socket.io.js"></script>
@@ -40,10 +55,13 @@
             const socket = io();
             const form = document.getElementById('chat-form');
             const formShare = document.getElementById('share-form');
+            const formSearch = document.getElementById('search-form');
             const input = document.getElementById('input-message');
             const inputShare = document.getElementById('input-share');
+            const inputSearch = document.getElementById('input-search');
             const messages = document.getElementById('messages');
             const messagesShare = document.getElementById('messages-share');
+            const videoList = document.getElementById('video-list');
             const typeSelector = document.getElementById('recog-type_seletor');
 
             typeSelector.addEventListener('change', (event) => {
@@ -67,6 +85,14 @@
                 inputShare.value = '';
             });
 
+            formSearch.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const message = inputSearch.value;
+                socket.emit('search video', message);
+                inputSearch.value = '';
+                videoList.innerHTML = '';
+            });
+
             socket.on('chat message', (msg) => {
                 const li = document.createElement('li');
                 li.className = 'chat-bubble';
@@ -83,6 +109,48 @@
                 li.className = 'chat-bubble';
                 li.innerHTML = msg;
                 messagesShare.appendChild(li);
+            });
+
+            socket.on('search result', (videos) => {
+                
+                videos.forEach((video) => {
+                    const videoListItem = document.createElement("li");
+
+                    const title = document.createElement("h4");
+                    title.textContent = video.title;
+                    videoListItem.appendChild(title);
+
+                    const thumbnail = document.createElement("img");
+                    thumbnail.src = video.thumbnailUrl;
+                    thumbnail.style.width = '230px';
+                    videoListItem.appendChild(thumbnail);
+
+                    const views = document.createElement("p");
+                    views.textContent = `Views: ${video.views}`;
+                    videoListItem.appendChild(views);
+
+                    const nickName = document.createElement("p");
+                    nickName.textContent = `닉네임: ${video.nickName}`;
+                    videoListItem.appendChild(nickName);
+
+                    const runningTime = document.createElement("p");
+                    runningTime.textContent = video.runningTime;
+                    videoListItem.appendChild(runningTime);
+
+                    const url = `https://www.youtube.com${video.videoUrl}`;
+
+                    thumbnail.addEventListener('click', () => {
+                        navigator.clipboard.writeText(url);
+                        alert(`Copied url! ${url}`);
+                    });
+
+                    title.addEventListener('click', () => {
+                        navigator.clipboard.writeText(url);
+                        alert(`Copied url! ${url}`);
+                    });
+
+                    videoList.appendChild(videoListItem);
+                });
             });
         </script>
     </body>
